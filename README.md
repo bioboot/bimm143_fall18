@@ -1,2 +1,4 @@
 # bimm143_fall18
-My class repo for bimm143 at UCSD
+My class repository for BIMM-143 (Introduction to Bioinformatics) at UCSD.
+
+
