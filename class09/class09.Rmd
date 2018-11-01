@@ -1,0 +1,228 @@
+---
+title: "Class 9"
+author: "Barry Grant"
+date: "10/30/2018"
+output: github_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Unsupervised Learning Analysis of Cancer Cells
+
+Import the data. The data consist of measurements of cell nuclei of human breast masses
+
+Values in this data set describe characteristics of the cell nuclei present in digitized images of a fine needle aspiration (FNA) of a breast mass. For example radius (i.e. mean of distances from center to points on the perimeter), texture (i.e. standard deviation of gray-scale values), and smoothness (local variation in radius lengths). Summary information is also provided for each group of cells including diagnosis (i.e. benign (not cancerous) and and malignant (cancerous)).
+
+```{r}
+url <- "https://bioboot.github.io/bimm143_W18/class-material/WisconsinCancer.csv"
+
+# Complete the following code to input the data and store as wisc.df
+wisc.df <- read.csv(url)
+head(wisc.df)
+```
+
+So the diagnosis col is the lables. 
+
+```{r}
+table(wisc.df$diagnosis)
+```
+
+ setup a separate new vector called diagnosis to be 1 if a diagnosis is malignant ("M") and 0 otherwise. Note that R coerces TRUE to 1 and FALSE to 0.
+ 
+```{r}
+diagnosis <- as.numeric(wisc.df$diagnosis == "M")
+sum(diagnosis)
+```
+ 
+
+Lets drop this and the id col so we just have the measurments as a matrix. Take cols 3 through 32
+
+```{r}
+# Convert the features of the data: wisc.data
+wisc.data <- as.matrix( wisc.df[,3:32] )
+```
+
+
+How many features have "_mean" in their name
+
+```{r}
+x <- length( grep("_mean",  colnames(wisc.data)) )
+```
+
+There are `r x` mean measurments in this dataset.
+
+
+## Section 2. Performing PCA
+
+```{r}
+# Check column means and standard deviations
+colMeans(wisc.data)
+```
+
+```{r}
+apply(wisc.data,2,sd)
+```
+
+
+```{r}
+# Perform PCA on wisc.data by completing the following code
+wisc.pr <- prcomp( wisc.data, scale=TRUE )
+summary(wisc.pr)
+```
+
+Lets make a plot of PC1 vs PC2
+
+```{r}
+attributes(wisc.pr)
+```
+
+
+```{r}
+dim(wisc.pr$x)
+```
+
+
+```{r}
+plot(wisc.pr$x[,1], wisc.pr$x[,2])
+```
+
+
+```{r}
+plot(wisc.pr$x[,1], wisc.pr$x[,2], col=diagnosis+1)
+```
+
+### Variance explained
+
+```{r}
+pr.var <- wisc.pr$sdev^2
+
+# Variance explained by each principal component: pve
+pve <- pr.var / sum(pr.var)
+
+# Plot variance explained for each principal component
+plot(pve, xlab = "Principal Component", 
+     ylab = "Proportion of Variance Explained", 
+     ylim = c(0, 1), type = "o")
+```
+
+
+```{r}
+# Alternative scree plot of the same data, note data driven y-axis
+barplot(pve, ylab = "Precent of Variance Explained",
+     names.arg=paste0("PC",1:length(pve)), las=2, axes = FALSE)
+axis(2, at=pve, labels=round(pve,2)*100 )
+```
+
+```{r}
+plot(cumsum(pve), xlab = "Principal Component", 
+     ylab = "Cumulative Proportion of Variance Explained", 
+     ylim = c(0, 1), type = "o")
+```
+
+
+## Section 3. Hierarchical clustering of case data
+
+As part of the preparation for hierarchical clustering, the distance between all pairs of observations are computed. Furthermore, there are different ways to link clusters together, with single, complete, and average being the most common linkage methods.
+
+Scale the wisc.data data and assign the result to data.scaled.
+
+```{r}
+# Scale the wisc.data data: data.scaled
+data.scaled <- scale(wisc.data)
+```
+
+We need a distance matrix for hierarchical clustering input...
+
+```{r}
+data.dist <- dist(data.scaled)
+```
+
+Create a hierarchical clustering model using complete linkage. Manually specify the method argument to hclust() and assign the results to wisc.hclust.
+
+```{r}
+wisc.hclust <- hclust(data.dist, method="complete")
+
+```
+
+Plot our tree
+```{r}
+plot(wisc.hclust)
+```
+
+Use cutree() to cut the tree so that it has 4 clusters. Assign the output to the variable wisc.hclust.clusters
+
+```{r}
+wisc.hclust.clusters <- cutree(wisc.hclust, k=4)
+
+table(wisc.hclust.clusters)
+```
+
+Compare cluster groups to out diagnosis
+
+```{r}
+table(wisc.hclust.clusters, diagnosis)
+```
+
+
+
+
+## Section 5. Clustering on PCA results
+
+Let’s see if PCA improves or degrades the performance of hierarchical clustering.
+
+Using the minimum number of principal components required to describe at least 90% of the variability in the data, create a hierarchical clustering model with complete linkage. Assign the results to wisc.pr.hclust.
+
+```{r}
+## Use the distance along the first 7 PCs for clustering i.e. wisc.pr$x[, 1:7]
+d.pr <- dist(wisc.pr$x[, 1:7])
+wisc.pr.hclust <- hclust(d.pr, method="complete")
+plot(wisc.pr.hclust)
+```
+
+
+
+```{r}
+wisc.pr.hclust.clusters <- cutree(wisc.pr.hclust, k=4)
+table(wisc.pr.hclust.clusters)
+```
+
+```{r}
+table(wisc.pr.hclust.clusters, diagnosis)
+
+```
+
+
+## Bonus section: predicting with out PCA model
+
+Take new patirnt data and apply our PCA model from above...
+
+```{r}
+## Predicting Malignancy Of New samples  
+
+url <- "https://tinyurl.com/new-samples-CSV"
+new <- read.csv(url)
+npc <- predict(wisc.pr, newdata=new)
+
+plot(wisc.pr$x[,1:2], col= (diagnosis+1))
+points(npc[,1], npc[,2], col="blue", pch=16, cex=3)
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
