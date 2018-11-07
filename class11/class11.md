@@ -442,3 +442,5 @@ view(pc1)
 ``` r
 #rglwidget(width=500, height=500)
 ```
+
+<img src="pc1_movie.gif" alt="Results of PCA analysis" width="500" />
