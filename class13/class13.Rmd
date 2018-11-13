@@ -97,4 +97,6 @@ plot(modes)
 mktrj(modes, mode=7, file="nma_7.pdb")
 ```
 
+Add animation of mode!
+
 ![](untitled.gif)

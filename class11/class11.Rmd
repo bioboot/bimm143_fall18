@@ -1,8 +1,8 @@
 ---
 title: "Class11: Structural Bioinformatics "
-output: 
-  html_document:
-    keep_md: true
+output: github_document
+#  html_document:
+#    keep_md: true
 ---
 
 ```{r setup, include=FALSE}
@@ -151,7 +151,7 @@ library(bio3d.view)
 library(rgl)
 
 view(pdbs)
-rglwidget(width=500, height=500)
+#rglwidget(width=500, height=500)
 ```
 
 
@@ -178,8 +178,11 @@ View structures along PC1
 
 ```{r}
 view(pc1)
-rglwidget(width=500, height=500)
+#rglwidget(width=500, height=500)
 ```
+
+![Results of PCA analysis](pc1_movie.gif){width=500px}
+
 
 
 
