@@ -161,8 +161,8 @@ pdb <- read.pdb("1hel")
 modes <- nma(pdb)
 ```
 
-    ##  Building Hessian...     Done in 0.017 seconds.
-    ##  Diagonalizing Hessian...    Done in 0.088 seconds.
+    ##  Building Hessian...     Done in 0.016 seconds.
+    ##  Diagonalizing Hessian...    Done in 0.076 seconds.
 
 ``` r
 plot(modes)
