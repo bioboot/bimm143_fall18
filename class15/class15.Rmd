@@ -1,0 +1,297 @@
+---
+title: "Class15: Genome Informatics II"
+output: github_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## RNA-Seq analysis
+
+First step is to read our countData and colData (metadata) files that we will use with DESeq.
+
+```{r}
+counts <- read.csv("data/airway_scaledcounts.csv", stringsAsFactors = FALSE)
+metadata <-  read.csv("data/airway_metadata.csv", stringsAsFactors = FALSE)
+```
+
+Lets examine the metadata file to find **control** and **treated** columns (cell-lines).
+
+```{r}
+control.inds <- metadata$dex == "control"
+control <- metadata[control.inds, ]
+control
+```
+
+```{r}
+control.mean <- rowSums( counts[ ,control$id] )/nrow(control)
+names(control.mean) <- counts$ensgene
+```
+
+Do the same thing for the treated columns
+
+```{r}
+treated.inds <- metadata$dex == "treated"
+treated <- metadata[treated.inds, ]
+
+treated.mean <- rowSums( counts[ ,treated$id] )/nrow(treated)
+names(treated.mean) <- counts$ensgene
+```
+
+We will combine our meancount data for bookkeeping purposes.
+
+```{r}
+meancounts <- data.frame(control.mean, treated.mean)
+colSums(meancounts)
+```
+
+Lets plot our data.
+
+```{r}
+plot(meancounts$control.mean, meancounts$treated.mean)
+```
+
+Make plot with log transformation
+```{r}
+plot(meancounts$control.mean, meancounts$treated.mean, log="xy")
+```
+
+## Log2 Fold Change
+
+Here we calculate log2foldchange, add it to our meancounts data.frame and inspect the results either with the head() or the View() function for example.
+
+```{r}
+meancounts$log2fc <- log2(meancounts[,"treated.mean"]/meancounts[,"control.mean"])
+head(meancounts)
+```
+
+### Filter genes with zero expression
+
+The NaN is returned when you divide by zero and try to take the log. The -Inf is returned when you try to take the log of zero. It turns out that there are a lot of genes with zero expression. Let’s filter our data to remove these genes.
+
+```{r}
+zero.vals <- which(meancounts[,1:2]==0, arr.ind=TRUE)
+
+to.rm <- unique(zero.vals[,1])
+
+mycounts <- meancounts[-to.rm,]
+head(mycounts)
+```
+
+
+Pick a log fold change threshold of +2 and -2 to call differential expression.
+
+```{r}
+up.ind <- mycounts$log2fc > 2
+down.ind <- mycounts$log2fc < (-2)
+```
+Number of genes 'up' and 'down'
+
+```{r}
+sum(up.ind)
+sum(down.ind)
+```
+
+## Annotate our genes 
+
+Add annotation data so we know what genes we have and what they might be doing...
+
+Read annotation data file
+```{r}
+anno <- read.csv("data/annotables_grch38.csv")
+head(anno)
+```
+
+Lets use the **merge()** function to add the annotation data ro our `mycounts` data frame.
+
+```{r}
+mycounts.anno <- merge(mycounts, anno, by.x="row.names", by.y= "ensgene")
+```
+
+Another apprach to to annotate with bioconductor annotation packages
+
+```{r}
+# biocLite("AnnotationDbi")
+# biocLite("org.Hs.eg.db")
+```
+
+```{r}
+library("AnnotationDbi")
+library("org.Hs.eg.db")
+```
+
+What is availabe in the human annotation data set
+```{r}
+columns(org.Hs.eg.db)
+```
+
+
+```{r}
+mycounts$symbol <- mapIds(org.Hs.eg.db,
+                     keys=row.names(mycounts),
+                     column="SYMBOL",
+                     keytype="ENSEMBL",
+                     multiVals="first")
+```
+
+```{r}
+head(mycounts)
+```
+
+
+```{r}
+mycounts$entrez <- mapIds(org.Hs.eg.db,
+                     keys=row.names(mycounts),
+                     column="ENTREZID",
+                     keytype="ENSEMBL",
+                     multiVals="first")
+```
+
+```{r}
+mycounts$uniprot <- mapIds(org.Hs.eg.db,
+                     keys=row.names(mycounts),
+                     column="UNIPROT",
+                     keytype="ENSEMBL",
+                     multiVals="first")
+
+```
+
+
+```{r}
+head(mycounts)
+```
+
+
+```{r}
+head(mycounts[up.ind,])
+```
+
+
+# DESeq analysis
+
+Load the DESeq2 package
+
+```{r}
+library(DESeq2)
+```
+
+
+
+```{r}
+dds <- DESeqDataSetFromMatrix(countData=counts, 
+                              colData=metadata, 
+                              design=~dex, 
+                              tidy=TRUE)
+dds
+```
+
+```{r}
+dds <- DESeq(dds)
+```
+
+```{r}
+res <- results(dds)
+res
+```
+
+Print a summary of our DESeq results
+
+```{r}
+summary(res)
+```
+
+Use a p-value of 0.05 rather than the defulat of 0.1
+
+```{r}
+res05 <- results(dds, alpha=0.05)
+summary(res05)
+```
+
+```{r}
+res01 <- results(dds, alpha=0.01)
+summary(res01)
+```
+
+Add annotation to our results object `res01`
+
+```{r}
+
+res01$symbol <- mapIds(org.Hs.eg.db,
+                     keys=row.names(res01),
+                     column="SYMBOL",
+                     keytype="ENSEMBL",
+                     multiVals="first")
+
+
+```
+
+```{r}
+head(res01)
+```
+
+Save results to a CSV file
+```{r}
+write.csv(res01, "signif01_results.csv")
+```
+
+## Focus in on the gene CRISPLD2
+
+```{r}
+i <- grep("CRISPLD2", res01$symbol)
+res01[i,]
+```
+
+Use the DESeq2 package function **plotCounts()**
+
+```{r}
+d <- plotCounts(dds, gene="ENSG00000103196", intgroup="dex")
+```
+
+```{r}
+d <- plotCounts(dds, gene="ENSG00000103196", intgroup="dex", returnData=TRUE)
+
+d
+```
+
+Boxplot
+
+```{r}
+boxplot(count ~ dex , data=d)
+```
+
+
+## Volcano plots
+
+Let’s make another commonly produced visualization from this data.
+
+```{r}
+plot( res01$log2FoldChange, -log(res01$padj) )
+```
+
+
+Make a colored version of this plot highlighting genes with high fold cnage and small p-values.
+
+```{r}
+mycols <- rep("black", nrow(res01) )
+mycols[ abs(res01$log2FoldChange) > 2 ] <- "red"
+
+inds <- (res01$padj < 0.01) & (abs(res01$log2FoldChange) > 2 )
+mycols[ inds ] <- "blue"
+
+plot( res01$log2FoldChange, -log(res01$padj), col=mycols )
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
