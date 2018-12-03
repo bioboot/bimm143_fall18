@@ -1,0 +1,204 @@
+---
+title: "Class18: Cancer Genomics"
+output: github_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Working with the GDC
+
+```{r message=FALSE}
+library(GenomicDataCommons)
+library(maftools)
+```
+
+Now lets check on GDC status:
+
+```{r}
+GenomicDataCommons::status()
+```
+
+
+## Querying the GDC from R
+
+> Find how many patients were studied for each major project
+
+```{r}
+cases_by_project <- cases() %>%
+  facet("project.project_id") %>%
+  aggregations()
+head(cases_by_project)
+```
+
+
+Make a plot to summarize this data.
+
+```{r}
+x <- cases_by_project$project.project_id
+
+head(x)
+
+```
+
+```{r}
+barplot(x[,2], names.arg=x[,1], log="y", las=2, col=c("lightblue","red"))
+```
+
+```{r}
+# Make a custom color vector for our plot
+colvec <- rep("lightblue", nrow(x))
+paad.ind <- which(x$key == "TCGA-PAAD")
+colvec[ paad.ind ] <- "red"
+
+# Plot with 'log' for y axis and rotate labels with 'las'
+par(mar=c(8, 4, 0, 2))  
+barplot(x[,2], names.arg=x[,1], log="y", las=2, col=colvec)
+
+```
+
+> Now lets find and download all gene expression quantification data files for all pancreatic cancer patients.
+
+
+```{r}
+## This code snipet is taken from the package vignette
+file_records <- files() %>%
+  filter(~ cases.project.project_id == "TCGA-PAAD" &
+    data_type == "Gene Expression Quantification" &
+    analysis.workflow_type == "HTSeq - Counts") %>%
+  response_all()
+```
+
+
+```{r}
+head(file_records)
+```
+
+# Variant analysis with R
+
+```{r}
+maf.files = files() %>%
+    filter(~ cases.project.project_id == 'TCGA-PAAD' &
+        data_type == 'Masked Somatic Mutation' &
+        data_format == "MAF" &
+        analysis.workflow_type == "MuTect2 Variant Aggregation and Masking"
+    ) %>%
+    response_all()
+```
+
+```{r}
+attributes(maf.files)
+```
+
+```{r}
+uid <- ids(maf.files)
+maffile = gdcdata(uid)
+
+maffile
+```
+
+
+```{r}
+vars = read.maf(maf = maffile, verbose = FALSE)
+```
+
+```{r}
+plotmafSummary(maf =vars, rmOutlier = TRUE,
+               addStat = 'median', dashboard = TRUE,
+               titvRaw = FALSE)
+```
+
+## Drawing oncoplots
+A very useful summary representation of this data can be obtained via so-called oncoplots, also known as waterfall plots.
+
+```{r}
+oncoplot(maf = vars, top = 10)
+```
+
+```{r}
+lollipopPlot(maf = vars, gene = 'KRAS', 
+                         showMutationRate = TRUE, domainLabelSize = 3)
+```
+
+
+```{r}
+lollipopPlot(maf = vars, gene = 'TP53', 
+                         showMutationRate = TRUE, domainLabelSize = 3)
+```
+
+---
+
+# Lab 2. Designing a personalized cancer vaccine
+
+Read the FASTA file for tumor and healthy P53 sequence
+
+```{r}
+library(bio3d)
+seqs <- read.fasta("lecture18_sequences.fa")
+seqs
+```
+
+```{r}
+score <- conserv(seqs, method="identity")
+mutant.inds <- which(score < 1)
+```
+
+
+```{r}
+# these are the tummor specific sites!!! (plus gaps)
+seqs$ali[, mutant.inds]
+```
+
+Can we identify and exclude gaps?
+We can try the **gap.inspect()** function and the `f.inds` output, which is the 
+indices for non-gap containing columns.
+
+```{r}
+gaps <- gap.inspect(seqs)
+seqs$ali[, gaps$f.inds ]
+
+```
+
+```{r}
+mutant.positions <- mutant.inds[mutant.inds %in% gaps$f.inds]
+mutant.positions
+```
+
+We want the 8 before and 8 after positions to get out sequences
+
+```{r}
+start.position <- mutant.positions - 8
+end.position <- mutant.positions + 8
+```
+
+```{r}
+start.position
+```
+
+```{r}
+end.position
+```
+
+
+```{r}
+seqs$ali[,start.position[1]:end.position[1]]
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
