@@ -1,0 +1,261 @@
+---
+title: "Class16: Pathway Analysis from RNA-Seq Results"
+output: github_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## About the data
+
+The data for for hands-on session comes from GEO entry: GSE37704, which is associated with the following publication:
+
+> Trapnell C, Hendrickson DG, Sauvageau M, Goff L et al. “Differential analysis of gene regulation at transcript resolution with RNA-seq”. Nat Biotechnol 2013 Jan;31(1):46-53. PMID: 23222703
+
+The authors report on differential analysis of lung fibroblasts in response to loss of the developmental transcription factor HOXA1. Their results and others indicate that HOXA1 is required for lung fibroblast and HeLa cell cycle progression. In particular their analysis show that *"loss of HOXA1 results in significant expression level changes in thousands of individual transcripts, along with isoform switching events in key regulators of the cell cycle"*. For our session we have used their Sailfish gene-level estimated counts and hence are restricted to protein-coding genes only.
+
+# 1. DESeq2 analysis
+
+Get our data into R.
+
+```{r}
+# Load the package
+library(DESeq2)
+```
+
+```{r}
+countData<- read.csv("data/GSE37704_featurecounts.csv", row.names = 1)
+colData <- read.csv("data/GSE37704_metadata.csv", row.names = 1)
+```
+
+Quick look at countData.
+```{r}
+head(countData)
+```
+
+We need to remove this "length" column. Remember that we need the countData and colData files to match up so we will need to remove that odd first column in countData namely contData$length.
+
+```{r}
+#countData$length
+countData <- countData[,-1]
+head(countData)
+```
+
+
+```{r}
+head( rowSums(countData) )
+#head( !rowSums(countData) == 0 )
+
+#head( rowSums(countData) != 0 )
+
+countData <- countData[rowSums(countData) != 0,]
+
+head(countData)
+```
+
+How many genes are we dealing with here?
+
+```{r}
+nrow(countData)
+```
+
+# Running DESeq2
+
+```{r}
+dds = DESeqDataSetFromMatrix(countData=countData,
+                             colData=colData,
+                             design=~condition)
+dds = DESeq(dds)
+```
+
+
+Get the results 
+
+```{r}
+results(dds)
+```
+
+
+```{r}
+res = results(dds, contrast=c("condition", "hoxa1_kd", "control_sirna"))
+res
+```
+
+Call the summary() function on your results to get a sense of how many genes are up or down-regulated at the default 0.1 p-value cutoff.
+
+```{r}
+summary(res, alpha=0.1)
+
+summary(res, alpha=0.05)
+```
+
+
+# Volcono plot
+
+Simple all black plot
+
+```{r}
+plot( res$log2FoldChange, -log(res$padj) )
+```
+
+Lets make this a bit more interesting by adding color and labels.
+
+```{r}
+# Make a color vector for all genes
+mycols <- rep("gray", nrow(res) )
+
+# Color red the genes with absolute fold change above 2
+mycols[ abs(res$log2FoldChange) > 2 ] <- "red"
+
+#plot( res$log2FoldChange, -log(res$padj), col=mycols )
+
+# Color blue those with adjusted p-value less than 0.01
+#  and absolute fold change more than 2
+inds <- (res$padj < 0.01) & (abs(res$log2FoldChange) > 2 )
+mycols[ inds ] <- "blue"
+
+plot( res$log2FoldChange, -log(res$padj), col=mycols, xlab="Log2(FoldChange)", ylab="-Log(P-value)" )
+```
+
+
+# Adding gene annotation
+
+We will use the **mapIds()** function to add different annotation and identifiers to our results data.
+
+```{r}
+library("AnnotationDbi")
+library("org.Hs.eg.db")
+
+columns(org.Hs.eg.db)
+
+```
+
+```{r}
+res$symbol = mapIds(org.Hs.eg.db,
+                    keys=row.names(res), 
+                    keytype="ENSEMBL",
+                    column="SYMBOL",
+                    multiVals="first")
+
+res$entrez = mapIds(org.Hs.eg.db,
+                    keys=row.names(res),
+                    keytype="ENSEMBL",
+                    column="ENTREZID",
+                    multiVals="first")
+
+res$name =   mapIds(org.Hs.eg.db,
+                    keys=row.names(res),
+                    keytype="ENSEMBL",
+                    column="GENENAME",
+                    multiVals="first")
+
+
+head(res,10)
+```
+
+
+## Write out results
+
+```{r}
+res = res[order(res$pvalue),]
+write.csv(res, file="deseq_results.csv")
+```
+
+
+# Pathway analysis
+
+Load the packages we need
+```{r}
+library(pathview)
+library(gage)
+library(gageData)
+```
+
+Focus on signaling and metabolic pathways from KEGG
+
+```{r}
+data(kegg.sets.hs)
+data(sigmet.idx.hs)
+
+# Focus on signaling and metabolic pathways only
+kegg.sets.hs = kegg.sets.hs[sigmet.idx.hs]
+
+# Examine the first 3 pathways
+head(kegg.sets.hs, 3)
+```
+
+Setup input vector for **gage()**
+
+```{r}
+foldchanges = res$log2FoldChange
+names(foldchanges) = res$entrez
+head(foldchanges)
+```
+
+Run gage
+```{r}
+keggres = gage(foldchanges, gsets=kegg.sets.hs)
+```
+
+```{r}
+attributes(keggres)
+```
+
+```{r}
+head(keggres$less)
+```
+
+Lets look at these results for one gene-set
+
+```{r}
+pathview(gene.data=foldchanges, pathway.id="hsa04110")
+```
+
+
+![](hsa04110.pathview.png)
+
+
+# Section 3. Gene Ontology (GO)
+
+Focus on the Biological Processes part of GO
+
+```{r}
+data(go.sets.hs)
+data(go.subs.hs)
+
+# Focus on Biological Process subset of GO
+gobpsets = go.sets.hs[go.subs.hs$BP]
+
+gobpres = gage(foldchanges, gsets=gobpsets, same.dir=TRUE)
+
+```
+
+```{r}
+attributes(gobpres)
+```
+
+```{r}
+head(gobpres$less)
+```
+
+
+# Online Reactome setup
+
+```{r}
+sig_genes <- res[res$padj <= 0.05 & !is.na(res$padj), "symbol"]
+print(paste("Total number of significant genes:", length(sig_genes)))
+```
+
+
+```{r}
+write.table(sig_genes, file="significant_genes.txt", row.names=FALSE, col.names=FALSE, quote=FALSE)
+```
+
+
+
+
+
+
+
+
