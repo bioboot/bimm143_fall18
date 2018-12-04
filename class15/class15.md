@@ -75,7 +75,7 @@ plot(meancounts$control.mean, meancounts$treated.mean, log="xy")
 Log2 Fold Change
 ----------------
 
-Here we calculate log2foldchange, add it to our meancounts data.frame and inspect the results either with the head() or the View() function for example.
+Here we calculate log2foldchange, add it to our mean counts data.frame and inspect the results either with the head() or the View() function for example.
 
 ``` r
 meancounts$log2fc <- log2(meancounts[,"treated.mean"]/meancounts[,"control.mean"])
@@ -166,13 +166,13 @@ head(anno)
     ## 5                                    chromosome 1 open reading frame 112 [Source:HGNC Symbol;Acc:HGNC:25565]
     ## 6                          FGR proto-oncogene, Src family tyrosine kinase [Source:HGNC Symbol;Acc:HGNC:3697]
 
-Lets use the **merge()** function to add the annotation data ro our `mycounts` data frame.
+Lets use the **merge()** function to add the annotation data to our `mycounts` data frame.
 
 ``` r
 mycounts.anno <- merge(mycounts, anno, by.x="row.names", by.y= "ensgene")
 ```
 
-Another apprach to to annotate with bioconductor annotation packages
+Another approach to to annotate with bioconductor annotation packages
 
 ``` r
 # biocLite("AnnotationDbi")
@@ -238,7 +238,7 @@ library("org.Hs.eg.db")
 
     ## 
 
-What is availabe in the human annotation data set
+What is available in the human annotation data set
 
 ``` r
 columns(org.Hs.eg.db)
@@ -465,7 +465,7 @@ summary(res)
     ## [1] see 'cooksCutoff' argument of ?results
     ## [2] see 'independentFiltering' argument of ?results
 
-Use a p-value of 0.05 rather than the defulat of 0.1
+Use a p-value of 0.05 rather than the default of 0.1
 
 ``` r
 res05 <- results(dds, alpha=0.05)
@@ -613,16 +613,32 @@ plot( res01$log2FoldChange, -log(res01$padj) )
 
 ![](class15_files/figure-markdown_github/unnamed-chunk-37-1.png)
 
-Make a colored version of this plot highlighting genes with high fold cnage and small p-values.
+Make a colored version of this plot highlighting genes with high fold change and small p-values.
 
 ``` r
-mycols <- rep("black", nrow(res01) )
+mycols <- rep("gray", nrow(res01) )
 mycols[ abs(res01$log2FoldChange) > 2 ] <- "red"
 
 inds <- (res01$padj < 0.01) & (abs(res01$log2FoldChange) > 2 )
 mycols[ inds ] <- "blue"
 
-plot( res01$log2FoldChange, -log(res01$padj), col=mycols )
+plot( res01$log2FoldChange, -log(res01$padj), col=mycols, ylab="-Log(P-value)", xlab="Log2(FoldChange)" )
+
+abline(v=c(-2,2), col="gray", lty=2)
+abline(h=-log(0.1), col="gray", lty=2)
 ```
 
-![](class15_files/figure-markdown_github/unnamed-chunk-38-1.png)
+![](class15_files/figure-markdown_github/volcanoplot-1.png)
+
+``` r
+png("volcano_base.png", 680, 680)
+par(cex=2)
+plot( res01$log2FoldChange, -log(res01$padj), col=mycols, ylab="-Log(P-value)", xlab="Log2(FoldChange)")
+
+abline(v=c(-2,2), col="gray", lty=2)
+abline(h=-log(0.1), col="gray", lty=2)
+dev.off()
+```
+
+    ## quartz_off_screen 
+    ##                 2
